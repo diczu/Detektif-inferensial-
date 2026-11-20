@@ -1,0 +1,252 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: tolak semua akses secara default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Dokumen uji koneksi startup (read-only get, tanpa list/write)
+    match /test/connection {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // Helper validasi path & bentuk data
+    function isValidKode(kode) {
+      return kode is string && kode.size() == 4 && kode.matches('^[0-9]{4}$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidTimMapBool(m) {
+      return m is map
+        && m.keys().hasAll(['1', '2', '3', '4'])
+        && m.keys().hasOnly(['1', '2', '3', '4'])
+        && m['1'] is bool
+        && m['2'] is bool
+        && m['3'] is bool
+        && m['4'] is bool;
+    }
+
+    function isValidOpsiSalahMap(m) {
+      return m is map
+        && m.keys().hasAll(['0', '1', '2', '3'])
+        && m.keys().hasOnly(['0', '1', '2', '3'])
+        && m['0'] is bool
+        && m['1'] is bool
+        && m['2'] is bool
+        && m['3'] is bool;
+    }
+
+    function isValidOpsiTeksMap(m) {
+      return m is map
+        && m.keys().hasAll(['0', '1', '2', '3'])
+        && m.keys().hasOnly(['0', '1', '2', '3'])
+        && m['0'] is string && m['0'].size() <= 300
+        && m['1'] is string && m['1'].size() <= 300
+        && m['2'] is string && m['2'].size() <= 300
+        && m['3'] is string && m['3'].size() <= 300;
+    }
+
+    function isValidNamaTim(m) {
+      return m is map
+        && m.keys().hasAll(['1', '2', '3', '4'])
+        && m.keys().hasOnly(['1', '2', '3', '4'])
+        && m['1'] is string && m['1'].size() >= 1 && m['1'].size() <= 40
+        && m['2'] is string && m['2'].size() >= 1 && m['2'].size() <= 40
+        && m['3'] is string && m['3'].size() >= 1 && m['3'].size() <= 40
+        && m['4'] is string && m['4'].size() >= 1 && m['4'].size() <= 40;
+    }
+
+    function isValidWarnaTim(m) {
+      return m is map
+        && m.keys().hasAll(['1', '2', '3', '4'])
+        && m.keys().hasOnly(['1', '2', '3', '4'])
+        && m['1'] is string && m['1'].size() >= 4 && m['1'].size() <= 20
+        && m['2'] is string && m['2'].size() >= 4 && m['2'].size() <= 20
+        && m['3'] is string && m['3'].size() >= 4 && m['3'].size() <= 20
+        && m['4'] is string && m['4'].size() >= 4 && m['4'].size() <= 20;
+    }
+
+    function isValidHpSlot(slot) {
+      return slot is map
+        && slot.keys().hasAll(['online', 'lastSeen'])
+        && slot.keys().hasOnly(['online', 'lastSeen'])
+        && slot.online is bool
+        && slot.lastSeen is int
+        && slot.lastSeen >= 0;
+    }
+
+    function isValidHpMap(m) {
+      return m is map
+        && m.keys().hasAll(['1', '2', '3', '4'])
+        && m.keys().hasOnly(['1', '2', '3', '4'])
+        && isValidHpSlot(m['1'])
+        && isValidHpSlot(m['2'])
+        && isValidHpSlot(m['3'])
+        && isValidHpSlot(m['4']);
+    }
+
+    function isValidUjiCoba(u) {
+      return u is map
+        && u.keys().hasAll(['aktif', 'hasil'])
+        && u.keys().hasOnly(['aktif', 'hasil'])
+        && u.aktif is bool
+        && isValidTimMapBool(u.hasil);
+    }
+
+    function isValidRuang(data) {
+      return data.keys().hasAll([
+          'status', 'ronde', 'modeTes', 'pemenang',
+          'terkunciTim', 'opsiSalah', 'opsiTeks',
+          'ujiCoba', 'namaTim', 'warnaTim', 'hp', 'dibuatPada'
+        ])
+        && data.keys().hasOnly([
+          'status', 'ronde', 'modeTes', 'pemenang', 'waktuMenang',
+          'terkunciTim', 'opsiSalah', 'opsiTeks', 'pilihanHp',
+          'ujiCoba', 'namaTim', 'warnaTim', 'hp', 'dibuatPada'
+        ])
+        && data.status is string && data.status in ['tutup', 'buka', 'terkunci']
+        && data.ronde is int && data.ronde >= 0 && data.ronde <= 30
+        && data.modeTes is bool
+        && (data.pemenang == null || (data.pemenang is int && data.pemenang in [1, 2, 3, 4]))
+        && (!('waktuMenang' in data) || data.waktuMenang == null || data.waktuMenang is timestamp)
+        && (!('pilihanHp' in data) || data.pilihanHp == null || (data.pilihanHp is int && data.pilihanHp in [0, 1, 2, 3]))
+        && isValidTimMapBool(data.terkunciTim)
+        && isValidOpsiSalahMap(data.opsiSalah)
+        && isValidOpsiTeksMap(data.opsiTeks)
+        && isValidUjiCoba(data.ujiCoba)
+        && isValidNamaTim(data.namaTim)
+        && isValidWarnaTim(data.warnaTim)
+        && isValidHpMap(data.hp)
+        && data.dibuatPada is timestamp;
+    }
+
+    function timTidakTerkunci(timId) {
+      return (timId == 1 && existing().terkunciTim['1'] == false)
+        || (timId == 2 && existing().terkunciTim['2'] == false)
+        || (timId == 3 && existing().terkunciTim['3'] == false)
+        || (timId == 4 && existing().terkunciTim['4'] == false);
+    }
+
+    function opsiBelumSalah(idx) {
+      return (idx == 0 && existing().opsiSalah['0'] == false)
+        || (idx == 1 && existing().opsiSalah['1'] == false)
+        || (idx == 2 && existing().opsiSalah['2'] == false)
+        || (idx == 3 && existing().opsiSalah['3'] == false);
+    }
+
+    // Aksi 1: HP menekan tombol REBUT! secara atomik via transaksi
+    function isRebutBuzzAction() {
+      return existing().status == 'buka'
+        && existing().pemenang == null
+        && incoming().dibuatPada == existing().dibuatPada
+        && incoming().diff(existing()).affectedKeys().hasOnly(['pemenang', 'status', 'waktuMenang'])
+        && incoming().status == 'terkunci'
+        && incoming().pemenang is int
+        && incoming().pemenang in [1, 2, 3, 4]
+        && incoming().waktuMenang == request.time
+        && timTidakTerkunci(incoming().pemenang);
+    }
+
+    // Aksi 2: HP atau layar utama memilih opsi yang belum dinonaktifkan saat menjawab
+    function isPilihOpsiAction() {
+      return existing().status == 'terkunci'
+        && existing().pemenang != null
+        && existing().modeTes == false
+        && incoming().dibuatPada == existing().dibuatPada
+        && incoming().diff(existing()).affectedKeys().hasOnly(['pilihanHp'])
+        && (incoming().pilihanHp == null || (incoming().pilihanHp is int && opsiBelumSalah(incoming().pilihanHp)));
+    }
+
+    // Aksi 3: HP melaporkan hasil uji coba tombol (hanya mengubah false -> true saat ujiCoba.aktif)
+    function isUjiCobaCheckInAction() {
+      return existing().ujiCoba.aktif == true
+        && incoming().dibuatPada == existing().dibuatPada
+        && incoming().diff(existing()).affectedKeys().hasOnly(['ujiCoba'])
+        && incoming().ujiCoba.aktif == true
+        && (!existing().ujiCoba.hasil['1'] || incoming().ujiCoba.hasil['1'] == true)
+        && (!existing().ujiCoba.hasil['2'] || incoming().ujiCoba.hasil['2'] == true)
+        && (!existing().ujiCoba.hasil['3'] || incoming().ujiCoba.hasil['3'] == true)
+        && (!existing().ujiCoba.hasil['4'] || incoming().ujiCoba.hasil['4'] == true);
+    }
+
+    // Aksi 4: HP melaporkan status online & heartbeat pada slot tim
+    function isHpPresenceAction() {
+      return incoming().dibuatPada == existing().dibuatPada
+        && incoming().diff(existing()).affectedKeys().hasOnly(['hp']);
+    }
+
+    // Aksi 5: Guru membuka/menutup rebutan, menonaktifkan opsi salah, mengatur uji coba, mengunci manual, atau menyinkronkan tim
+    function isGuruControlAction() {
+      return incoming().dibuatPada == existing().dibuatPada
+        && (
+          // Buka atau tutup rebutan (reset pemenang & pilihanHp ke null, perbarui opsiSalah & opsiTeks)
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'modeTes', 'ronde', 'pemenang', 'waktuMenang',
+              'terkunciTim', 'opsiSalah', 'opsiTeks', 'pilihanHp'
+            ])
+            && incoming().status in ['tutup', 'buka']
+            && incoming().pemenang == null
+            && incoming().waktuMenang == null
+            && (!('pilihanHp' in incoming()) || incoming().pilihanHp == null)
+          )
+          ||
+          // Kunci pemenang secara manual oleh guru (hanya jika belum ada pemenang)
+          (
+            existing().pemenang == null
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'pemenang', 'waktuMenang', 'pilihanHp'])
+            && incoming().status == 'terkunci'
+            && incoming().pemenang is int
+            && incoming().pemenang in [1, 2, 3, 4]
+            && incoming().waktuMenang == request.time
+            && (!('pilihanHp' in incoming()) || incoming().pilihanHp == null)
+          )
+          ||
+          // Kontrol sesi uji coba tombol rebutan (mulai, ulangi, atau selesaikan)
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['ujiCoba'])
+          )
+          ||
+          // Sinkronisasi nama & warna tim
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['namaTim', 'warnaTim'])
+          )
+        );
+    }
+
+    match /ruang/{kode} {
+      // Hanya izinkan get per kode 4 digit; tolak list agar tidak bisa di-scrape
+      allow get: if isValidKode(kode);
+      allow list: if false;
+
+      allow create: if isValidKode(kode)
+        && isValidRuang(incoming())
+        && incoming().status == 'tutup'
+        && incoming().pemenang == null
+        && (!('waktuMenang' in incoming()) || incoming().waktuMenang == null)
+        && (!('pilihanHp' in incoming()) || incoming().pilihanHp == null)
+        && incoming().dibuatPada == request.time;
+
+      allow update: if isValidKode(kode)
+        && isValidRuang(incoming())
+        && (
+          isRebutBuzzAction()
+          || isPilihOpsiAction()
+          || isUjiCobaCheckInAction()
+          || isHpPresenceAction()
+          || isGuruControlAction()
+        );
+
+      allow delete: if isValidKode(kode);
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "RuangRebutan": {
+      "title": "RuangRebutan",
+      "description": "Status ruang rebutan HP dan uji coba tombol untuk satu sesi kuis Detektif Inferensial Cup (4 kelompok)",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["tutup", "buka", "terkunci"],
+          "description": "Status tombol rebutan saat ini"
+        },
+        "ronde": {
+          "type": "integer",
+          "description": "Nomor soal aktif pada Ronde 2 (0 saat mode tes atau persiapan)"
+        },
+        "modeTes": {
+          "type": "boolean",
+          "description": "Menandakan sesi uji coba cepat tanpa poin di dalam Ronde 2"
+        },
+        "pemenang": {
+          "type": "integer",
+          "description": "Nomor kelompok pemenang (1, 2, 3, atau 4) atau null jika belum ada"
+        },
+        "waktuMenang": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp saat pemenang tercatat"
+        },
+        "terkunciTim": {
+          "type": "object",
+          "description": "Peta status terkunci untuk kelompok 1, 2, 3, dan 4 pada soal aktif"
+        },
+        "opsiSalah": {
+          "type": "object",
+          "description": "Peta status opsi jawaban yang sudah salah dan dinonaktifkan untuk indeks 0, 1, 2, dan 3 pada soal Ronde 2 aktif"
+        },
+        "opsiTeks": {
+          "type": "object",
+          "description": "Peta label teks opsi jawaban A-D (indeks 0..3) untuk soal Ronde 2 aktif agar tersinkron ke semua HP kelompok"
+        },
+        "pilihanHp": {
+          "type": "integer",
+          "description": "Indeks opsi (0..3) yang sedang dipilih kelompok penjawab, atau null jika belum memilih"
+        },
+        "ujiCoba": {
+          "type": "object",
+          "description": "Status sesi uji coba tombol rebutan sebelum Ronde 2 (aktif: boolean, hasil: peta 1..4 boolean)"
+        },
+        "namaTim": {
+          "type": "object",
+          "description": "Peta nama tampilan untuk kelompok 1, 2, 3, dan 4"
+        },
+        "warnaTim": {
+          "type": "object",
+          "description": "Peta kode warna heksadesimal untuk kelompok 1, 2, 3, dan 4"
+        },
+        "hp": {
+          "type": "object",
+          "description": "Status kehadiran online dan heartbeat terakhir untuk HP kelompok 1, 2, 3, dan 4"
+        },
+        "dibuatPada": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp saat ruangan dibuat"
+        }
+      },
+      "required": [
+        "status",
+        "ronde",
+        "modeTes",
+        "pemenang",
+        "terkunciTim",
+        "opsiSalah",
+        "opsiTeks",
+        "ujiCoba",
+        "namaTim",
+        "warnaTim",
+        "hp",
+        "dibuatPada"
+      ]
+    }
+  },
+  "firestore": {
+    "/ruang/{kode}": {
+      "schema": {
+        "$ref": "#/entities/RuangRebutan"
+      },
+      "description": "Dokumen ruang rebutan 4 digit yang disinkronkan real-time antara layar guru dan 4 HP kelompok"
+    }
+  }
+}
